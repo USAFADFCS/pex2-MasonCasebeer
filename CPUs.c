@@ -282,11 +282,56 @@ void* SRTFcpu(void* param) {
     int threadNum = ((CpuParams*) param)->threadNumber;
     SharedVars* svars = ((CpuParams*) param)->svars;
 
-    // Process* p = NULL;  // TODO: uncomment when you implement this function
+    Process* p = NULL;  // TODO: uncomment when you implement this function
 
     while (1) {
         sem_wait(svars->cpuSems[threadNum]);
+        if(p!= NULL) {
+            int cur_p = p->burstRemaining;
+            int pot_p = qShortestBR(&(svars->readyQ));
+          
+            if(cur_p > pot_p) {
+                p->requeued = true;
 
+                pthread_mutex_lock(&(svars->readyQLock));
+                
+                qInsert(&(svars->readyQ),p);
+                
+                pthread_mutex_unlock(&(svars->readyQLock));
+                
+                p = NULL;
+            }
+        }
+
+        if(p == NULL) {
+            // Lock readyQ before inspecting or modifying it — another CPU
+            // thread (or main inserting a new arrival) could touch it right now.
+            pthread_mutex_lock(&(svars->readyQLock));
+            
+            p = qRemove(&(svars->readyQ), qShortest(&(svars->readyQ)));
+            if (p == NULL) {
+                // readyQ was empty — CPU stays idle this tick.
+                printf("No process to schedule\n");
+            } else {
+                printf("Scheduling PID %d\n", p->PID);
+            }
+
+            pthread_mutex_unlock(&(svars->readyQLock));
+        } 
+
+        if (p != NULL) {
+            p->burstRemaining--;
+
+            if (p->burstRemaining == 0) {
+                // Process is done — move it to finishedQ so main can
+                // compute and print wait-time statistics at simulation end.
+                pthread_mutex_lock(&(svars->finishedQLock));
+                    qInsert(&(svars->finishedQ), p);
+                pthread_mutex_unlock(&(svars->finishedQLock));
+                // CPU is now idle; it will select a new process next tick.
+                p = NULL;
+            }
+        }
         sem_post(svars->mainSem);
     }
 }
@@ -300,11 +345,57 @@ void* PPcpu(void* param) {
     int threadNum = ((CpuParams*) param)->threadNumber;
     SharedVars* svars = ((CpuParams*) param)->svars;
 
-    // Process* p = NULL;  // TODO: uncomment when you implement this function
+    Process* p = NULL;  // TODO: uncomment when you implement this function
+
 
     while (1) {
         sem_wait(svars->cpuSems[threadNum]);
+        if(p!= NULL) {
+            int cur_p = p->priority;
+            int pot_p = qGetPriority(&(svars->readyQ));
+          
+            if(cur_p > pot_p) {
+                p->requeued = true;
 
+                pthread_mutex_lock(&(svars->readyQLock));
+                
+                qInsert(&(svars->readyQ),p);
+                
+                pthread_mutex_unlock(&(svars->readyQLock));
+                
+                p = NULL;
+            }
+        }
+
+        if(p == NULL) {
+            // Lock readyQ before inspecting or modifying it — another CPU
+            // thread (or main inserting a new arrival) could touch it right now.
+            pthread_mutex_lock(&(svars->readyQLock));
+            
+            p = qRemove(&(svars->readyQ), qPriority(&(svars->readyQ)));
+            if (p == NULL) {
+                // readyQ was empty — CPU stays idle this tick.
+                printf("No process to schedule\n");
+            } else {
+                printf("Scheduling PID %d\n", p->PID);
+            }
+
+            pthread_mutex_unlock(&(svars->readyQLock));
+        } 
+
+        if (p != NULL) {
+            p->burstRemaining--;
+
+            if (p->burstRemaining == 0) {
+                // Process is done — move it to finishedQ so main can
+                // compute and print wait-time statistics at simulation end.
+                pthread_mutex_lock(&(svars->finishedQLock));
+                    qInsert(&(svars->finishedQ), p);
+                pthread_mutex_unlock(&(svars->finishedQLock));
+                // CPU is now idle; it will select a new process next tick.
+                p = NULL;
+            }
+        }
         sem_post(svars->mainSem);
     }
 }
