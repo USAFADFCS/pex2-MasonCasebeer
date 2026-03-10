@@ -104,12 +104,10 @@ void* FIFOcpu(void* param) {
 // smallest burstRemaining (equals burstTotal for unscheduled processes).
 // ============================================================
 void* SJFcpu(void* param) {
+
     int threadNum = ((CpuParams*) param)->threadNumber;
     SharedVars* svars = ((CpuParams*) param)->svars;
-
-    Process* p = NULL;  // TODO: uncomment when you implement this function
-
-
+    Process* p = NULL; 
 
     while (1) {
 
@@ -120,9 +118,7 @@ void* SJFcpu(void* param) {
             // thread (or main inserting a new arrival) could touch it right now.
             pthread_mutex_lock(&(svars->readyQLock));
 
-            // Index 0 = head of the list = the process that has been waiting
-            // the longest (qInsert always appends to the tail, so the head is
-            // always the oldest arrival — that is the FIFO selection rule).
+           //grab shortest process in queue (non preemptive) 
             p = qRemove(&(svars->readyQ), qShortest(&(svars->readyQ)));
 
             if (p == NULL) {
@@ -164,7 +160,7 @@ void* NPPcpu(void* param) {
     int threadNum = ((CpuParams*) param)->threadNumber;
     SharedVars* svars = ((CpuParams*) param)->svars;
 
-    Process* p = NULL;  // TODO: uncomment when you implement this function
+    Process* p = NULL;  
 
     while (1) {
 
@@ -175,6 +171,7 @@ void* NPPcpu(void* param) {
             // thread (or main inserting a new arrival) could touch it right now.
             pthread_mutex_lock(&(svars->readyQLock));
 
+            //grab highest priority process (non preemptive)
             p = qRemove(&(svars->readyQ), qPriority(&(svars->readyQ)));
 
             if (p == NULL) {
@@ -215,12 +212,13 @@ void* NPPcpu(void* param) {
 void* RRcpu(void* param) {
     int threadNum = ((CpuParams*) param)->threadNumber;
     SharedVars* svars = ((CpuParams*) param)->svars;
-    Process* p = NULL;  // TODO: uncomment when you implement this function
+    Process* p = NULL;  
     int count = 0;
     while (1) {
 
         count ++;
         sem_wait(svars->cpuSems[threadNum]);
+        //round robin element: move out process once it has finished its quantum time
        if(p!= NULL) {
             if(count == svars->quantum){
                 count = 0;
@@ -241,6 +239,7 @@ void* RRcpu(void* param) {
             // thread (or main inserting a new arrival) could touch it right now.
             pthread_mutex_lock(&(svars->readyQLock));
             
+            //grab first element FIFO style
             p = qRemove(&(svars->readyQ), 0);
             count = 0;
             if (p == NULL) {
@@ -282,10 +281,13 @@ void* SRTFcpu(void* param) {
     int threadNum = ((CpuParams*) param)->threadNumber;
     SharedVars* svars = ((CpuParams*) param)->svars;
 
-    Process* p = NULL;  // TODO: uncomment when you implement this function
+    Process* p = NULL;  
 
     while (1) {
         sem_wait(svars->cpuSems[threadNum]);
+        
+        //preemptive element: take out p if its not lowest time remaining
+        //lower time process will get added later
         if(p!= NULL) {
             int cur_p = p->burstRemaining;
             int pot_p = qShortestBR(&(svars->readyQ));
@@ -308,6 +310,7 @@ void* SRTFcpu(void* param) {
             // thread (or main inserting a new arrival) could touch it right now.
             pthread_mutex_lock(&(svars->readyQLock));
             
+            //add lowest time process
             p = qRemove(&(svars->readyQ), qShortest(&(svars->readyQ)));
             if (p == NULL) {
                 // readyQ was empty — CPU stays idle this tick.
@@ -345,11 +348,13 @@ void* PPcpu(void* param) {
     int threadNum = ((CpuParams*) param)->threadNumber;
     SharedVars* svars = ((CpuParams*) param)->svars;
 
-    Process* p = NULL;  // TODO: uncomment when you implement this function
+    Process* p = NULL;  
 
 
     while (1) {
         sem_wait(svars->cpuSems[threadNum]);
+        //preemptive element, take out process if not highest priority
+        //higher priority p will get added later
         if(p!= NULL) {
             int cur_p = p->priority;
             int pot_p = qGetPriority(&(svars->readyQ));
@@ -372,6 +377,7 @@ void* PPcpu(void* param) {
             // thread (or main inserting a new arrival) could touch it right now.
             pthread_mutex_lock(&(svars->readyQLock));
             
+            //add highest priority process
             p = qRemove(&(svars->readyQ), qPriority(&(svars->readyQ)));
             if (p == NULL) {
                 // readyQ was empty — CPU stays idle this tick.
