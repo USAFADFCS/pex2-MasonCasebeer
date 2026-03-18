@@ -217,8 +217,8 @@ void* RRcpu(void* param) {
     int count = 0;
     while (1) {
 
-        count ++;
         sem_wait(svars->cpuSems[threadNum]);
+        count ++;
         //round robin element: move out process once it has finished its quantum time
        if(p!= NULL) {
             if(count == svars->quantum){
@@ -290,20 +290,23 @@ void* SRTFcpu(void* param) {
         //preemptive element: take out p if its not lowest time remaining
         //lower time process will get added later
         if(p!= NULL) {
+
+            pthread_mutex_lock(&(svars->readyQLock));
+            
             int cur_p = p->burstRemaining;
             int pot_p = qShortestBR(&(svars->readyQ));
           
             if(cur_p > pot_p) {
                 p->requeued = true;
 
-                pthread_mutex_lock(&(svars->readyQLock));
                 
                 qInsert(&(svars->readyQ),p);
                 
-                pthread_mutex_unlock(&(svars->readyQLock));
                 
                 p = NULL;
             }
+
+            pthread_mutex_unlock(&(svars->readyQLock));
         }
 
         if(p == NULL) {
@@ -357,20 +360,20 @@ void* PPcpu(void* param) {
         //preemptive element, take out process if not highest priority
         //higher priority p will get added later
         if(p!= NULL) {
+
+            pthread_mutex_lock(&(svars->readyQLock));
+
             int cur_p = p->priority;
             int pot_p = qGetPriority(&(svars->readyQ));
           
             if(cur_p > pot_p) {
-                p->requeued = true;
 
-                pthread_mutex_lock(&(svars->readyQLock));
-                
+                p->requeued = true;
                 qInsert(&(svars->readyQ),p);
-                
-                pthread_mutex_unlock(&(svars->readyQLock));
-                
                 p = NULL;
             }
+
+            pthread_mutex_unlock(&(svars->readyQLock));
         }
 
         if(p == NULL) {
